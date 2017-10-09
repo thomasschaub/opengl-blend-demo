@@ -1,5 +1,6 @@
 #include <iostream>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include <SDL2/SDL.h>
@@ -158,6 +159,38 @@ void main()
     }
   }
 
+  //@}
+  // Configuration
+  //@{
+
+  GLenum sfactor = GL_SRC_ALPHA;
+  GLenum dfactor = GL_ONE_MINUS_SRC_ALPHA;
+  GLenum modeRgb = GL_FUNC_ADD;
+  GLenum modeAlpha = GL_FUNC_ADD;
+
+  const std::unordered_map<SDL_Keycode, GLenum> keyToBlendFunc{
+    {SDLK_q, GL_ZERO},
+    {SDLK_w, GL_ONE},
+    {SDLK_e, GL_SRC_COLOR},
+    {SDLK_r, GL_ONE_MINUS_SRC_COLOR},
+    {SDLK_t, GL_DST_COLOR},
+    {SDLK_y, GL_ONE_MINUS_DST_COLOR},
+    {SDLK_u, GL_SRC_ALPHA},
+    {SDLK_i, GL_ONE_MINUS_SRC_ALPHA},
+    {SDLK_o, GL_DST_ALPHA},
+    {SDLK_p, GL_ONE_MINUS_DST_ALPHA},
+    {SDLK_a, GL_CONSTANT_COLOR},
+    {SDLK_s, GL_ONE_MINUS_CONSTANT_COLOR},
+    {SDLK_d, GL_CONSTANT_ALPHA},
+    {SDLK_f, GL_ONE_MINUS_CONSTANT_ALPHA},
+  };
+  const std::unordered_map<SDL_Keycode, GLenum> keyToBlendEquation{
+    {SDLK_z, GL_FUNC_ADD},
+    {SDLK_x, GL_FUNC_SUBTRACT},
+    {SDLK_c, GL_FUNC_REVERSE_SUBTRACT},
+    {SDLK_v, GL_MIN},
+    {SDLK_b, GL_MAX},
+  };
 
   //@}
   // Main loop
@@ -175,6 +208,27 @@ void main()
     {
       switch (event.type)
       {
+        case SDL_KEYDOWN:
+          if (keyToBlendFunc.count(event.key.keysym.sym))
+          {
+            auto factor = &sfactor;
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LSHIFT])
+            {
+              factor = &dfactor;
+            }
+            *factor = keyToBlendFunc.at(event.key.keysym.sym);
+          }
+          else if (keyToBlendEquation.count(event.key.keysym.sym))
+          {
+            auto mode = &modeRgb;
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LSHIFT])
+            {
+              mode = &modeAlpha;
+            }
+            *mode = keyToBlendEquation.at(event.key.keysym.sym);
+          }
+          break;
+
         case SDL_QUIT:
           run = false;
           break;
@@ -210,8 +264,8 @@ void main()
     glBindBuffer(GL_ARRAY_BUFFER, uvBuffer);
     glVertexAttribPointer(uvIndex, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFunc(sfactor, dfactor);
+    glBlendEquationSeparate(modeRgb, modeAlpha);
 
     for (int i = 0; i < textureIds.size(); ++i)
     {
