@@ -8,6 +8,9 @@
 
 #include <glm/vec2.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 void printDebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
 {
   std::cerr << message << std::endl;
@@ -31,7 +34,6 @@ static const GLuint makeBuffer(const Container& data )
   glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(data[0]), data.data(), GL_STATIC_DRAW);
   return ret;
 }
-
 
 int main(int argc, const char* argv[])
 {
@@ -60,7 +62,7 @@ int main(int argc, const char* argv[])
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
-  const auto window = SDL_CreateWindow("opengl-blend-demo", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  const auto window = SDL_CreateWindow("opengl-blend-demo", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 512, 512, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   const auto context = SDL_GL_CreateContext(window);
 
   glewExperimental = GL_TRUE;
@@ -96,11 +98,13 @@ void main()
 
 in vec2 vertex_uv;
 
-out vec3 color;
+out vec4 color;
+
+uniform sampler2D sampler;
 
 void main()
 {
-  color = vec3(vertex_uv, 1.0f);
+  color = texture(sampler, vertex_uv);
 }
   )""";
   auto fragmentShaderId = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc);
@@ -133,8 +137,34 @@ void main()
   });
 
   //@}
+  // Texture
+  //@{
+
+  std::vector<GLuint> textureIds(argc - 1, 0);
+  glGenTextures(textureIds.size(), textureIds.data());
+  for (int i = 0; i < textureIds.size(); ++i)
+  {
+    glBindTexture(GL_TEXTURE_2D, textureIds[i]);
+    int width, height, n;
+    const auto data = stbi_load(argv[i+1], &width, &height, &n, 4);
+    if (data != nullptr)
+    {
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+      stbi_image_free(data);
+    }
+  }
+
+
+  //@}
   // Main loop
   //@{
+
+  glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
 
   bool run = true;
   while (run)
@@ -180,7 +210,14 @@ void main()
     glBindBuffer(GL_ARRAY_BUFFER, uvBuffer);
     glVertexAttribPointer(uvIndex, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+
+    for (int i = 0; i < textureIds.size(); ++i)
+    {
+      glBindTexture(GL_TEXTURE_2D, textureIds[i]);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
 
     SDL_GL_SwapWindow(window);
   }
